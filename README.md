@@ -6,9 +6,23 @@ Find a copy of the paper here: https://utexas.app.box.com/v/das-acl-2022
 
 **NOTE**: Part of the code is being refactored and tested. Please contact me if you have any questions. 
 
+## Quick Start
+
+To run ProtoTEx on the propganda detection task, first we need the following:
+
+```
+mkdir Logs
+mkdir Models
+pip install -r requirements.txt
+```
+
+If pytorch installation fails with the above command, please follow the instructions [here](https://pytorch.org) and then rerun `pip install`.
+
+For a quick run of the model, run the notebook `train-eval-propaganda.ipynb`. 
+
 ## Citation
 
-If you use this resource, please cite our paper:
+If you use this resource or ideas presented here, please consider citing our paper:
 
 ### BibTeX
 
