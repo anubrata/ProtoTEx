@@ -176,7 +176,7 @@ class ProtoTEx(torch.nn.Module):
             if use_classfn or use_p1 or use_p2:
                 if not self.dobatchnorm:
                     ## TODO: This loss function is not ignoring the padded part of the sequence; Get element-wise distane and then multiply with the mask 
-                    input_for_classfn = self.one_by_sqrt_bartoutdim * torch.cdist(last_hidden_state.view(batch_size, -1),
+                    input_for_classfn = torch.cdist(last_hidden_state.view(batch_size, -1),
                                                                                   all_protos.view(self.num_protos, -1))
                 else:
                     input_for_classfn = torch.cdist(last_hidden_state.view(batch_size, -1),
