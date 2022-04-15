@@ -21,10 +21,11 @@ def train_simple_ProtoTEx(
         train_dataset_len,
         num_prototypes, 
         num_pos_prototypes,
-        modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_80_20_train_nomask_protos_yesmask_0.1lp3"
+        modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_20_train_nomask_protos"
         ):
     torch.cuda.empty_cache()
     model=ProtoTEx(num_prototypes, num_pos_prototypes).cuda()
+    model.set_prototypes(do_random=True)
     optim=AdamW(model.parameters(),lr=3e-5,weight_decay=0.01,eps=1e-8)
     save_path=MODELPATH+modelname
     logs_path=LOGSPATH+modelname
@@ -51,8 +52,8 @@ def train_simple_ProtoTEx(
         for batch in train_loader:
             input_ids,attn_mask,y=batch
             classfn_out,loss=model(input_ids,attn_mask,y,use_decoder=0,use_classfn=1,
-                                use_rc=0,use_p1=1,use_p2=1,use_p3=1,rc_loss_lamb=1.0,p1_lamb=1.0,
-                                p2_lamb=1.0,p3_lamb=0.1)
+                                use_rc=0,use_p1=1,use_p2=1,use_p3=0,rc_loss_lamb=1.0,p1_lamb=1.0,
+                                p2_lamb=1.0,p3_lamb=0)
             total_loss+=loss[0].detach().item()
             classfn_loss+=loss[1].detach().item()
             rc_loss+=loss[2].detach().item()

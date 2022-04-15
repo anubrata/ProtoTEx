@@ -1,4 +1,7 @@
 import os
+# os.environ['TRANSFORMERS_CACHE'] = '/mnt/infonas/data/baekgupta/cache/'
+# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+# os.environ["CUDA_VISIBLE_DEVICES"]="2" 
 from importlib import reload  
 import numpy as np
 import torch,time
