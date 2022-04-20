@@ -1,15 +1,18 @@
 import os
-# os.environ['TRANSFORMERS_CACHE'] = '/mnt/infonas/data/baekgupta/cache/'
-# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-# os.environ["CUDA_VISIBLE_DEVICES"]="2" 
+os.environ['TRANSFORMERS_CACHE'] = '/mnt/infonas/data/baekgupta/cache/'
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+
+from args import args
+os.environ["CUDA_VISIBLE_DEVICES"]=args.cuda 
 from importlib import reload  
 import numpy as np
 import torch,time
+torch.backends.cuda.matmul.allow_tf32 = True
+
 from transformers import BartModel,BartConfig,BartForConditionalGeneration
 from transformers import BartTokenizer
 from tqdm.notebook import tqdm
 import pathlib
-from args import args
 
 ## Custom modules
 from preprocess import make_dataset
@@ -17,7 +20,7 @@ from preprocess import make_bert_dataset,make_bert_testset
 from preprocess import create_labels, labels_set 
 from preprocess import BinaryClassDataset
 
-from training import train_simple_ProtoTEx, train_ProtoTEx_w_neg
+from training import train_simple_ProtoTEx, train_simple_ProtoTEx_1, train_ProtoTEx_w_neg
 
 ## Set cuda 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -69,7 +72,7 @@ def main():
         test_ls = test_ls[0:tiny_sample_n]
         test_y_txt = test_y_txt[0:tiny_sample_n]
 
-    train_dataset=BinaryClassDataset(train_sents,train_ls,train_y_txt,it_is_train=0,balance=True, tokenizer=tokenizer)
+    train_dataset=BinaryClassDataset(train_sents,train_ls,train_y_txt,it_is_train=0,balance=args.train_bal, tokenizer=tokenizer)
     val_dataset=BinaryClassDataset(val_sents,val_ls,val_y_txt,it_is_train=0, tokenizer=tokenizer)
     test_dataset=BinaryClassDataset(test_sents,test_ls,test_y_txt,it_is_train=0, tokenizer=tokenizer)
     train_dataset_eval=BinaryClassDataset(train_sents,train_ls,train_y_txt,it_is_train=0,balance=False, tokenizer=tokenizer)
@@ -92,18 +95,19 @@ def main():
             val_dl = val_dl,
             test_dl = test_dl,
             num_prototypes=args.num_prototypes, 
-            num_pos_prototypes=args.num_pos_prototypes
+            num_pos_prototypes=args.num_pos_prototypes,
+            modelname=args.modelname
         )
 
     elif args.model == "SimpleProtoTEx":
         print("Simple ProtoTEx")
-        train_simple_ProtoTEx(
+        train_simple_ProtoTEx_1(
             train_dl = train_dl,
             val_dl = val_dl,
             test_dl = test_dl,
             train_dataset_len = len(train_dataset),
             num_prototypes=args.num_prototypes, 
-            num_pos_prototypes=args.num_pos_prototypes
+            num_pos_prototypes=args.num_pos_prototypes,
         ) 
  
 

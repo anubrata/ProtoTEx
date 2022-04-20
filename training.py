@@ -3,14 +3,92 @@ import torch
 from transformers.optimization import AdamW
 from tqdm.notebook import tqdm
 
-
 ## Custom modules
 from utils import EarlyStopping, print_logs, evaluate
-from models import ProtoTEx
+from models import ProtoTEx, SimpleProtoBartModel
 
 ## Save paths
 MODELPATH = "Models/"
 LOGSPATH = "Logs/"
+
+def train_simple_ProtoTEx_1(
+        train_dl, 
+        val_dl, 
+        test_dl,
+        train_dataset_len,
+        num_prototypes, 
+        num_pos_prototypes,
+        modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_50_train_nomask_protos_lam0.9_encTrue",
+    rec_loss=0,
+    train_deocder=0
+        ):
+    
+    model=SimpleProtoBartModel(num_prototypes=num_prototypes).cuda()
+
+    # optim=torch.optim.Adam(model.parameters(),lr=5e-5,weight_decay=0.01)
+    optim=AdamW(model.parameters(),lr=3e-5,weight_decay=0.01,eps=1e-8)
+    modelname="simpleprotobart_20"
+    save_path="Models/"+modelname
+    logs_path="Logs/"+modelname
+    f=open(logs_path,"w")
+    f.writelines([""])
+    f.close()
+    epoch=-1
+    val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(val_dl,model)
+    print_logs(logs_path,"VAL SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+    val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(train_dl,model)
+    print_logs(logs_path,"TRAIN SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+    es=EarlyStopping(-np.inf,patience=7,path=save_path,save_epochwise=False)
+    n_iters=500
+    for epoch in range(n_iters):
+        total_loss=0
+        model.train()
+        model.set_encoder_status(status=True)
+        model.set_decoder_status(status=False)
+        model.set_protos_status(status=True)
+        model.set_classfn_status(status=True)
+        classfn_loss,rc_loss,l_p1,l_p2,l_p3=[0]*5
+        train_loader = tqdm(train_dl, total=len(train_dl), unit="batches",desc="training")
+        for batch in train_loader:
+            input_ids,attn_mask,y=batch
+            classfn_out,loss=model(input_ids,attn_mask,y,use_decoder=0,use_classfn=1,
+                                   use_rc=0,use_p1=1,use_p2=1,rc_loss_lamb=1.0,p1_lamb=1.0,
+                                   p2_lamb=1.0)
+            # total_loss+=loss[0].detach().item()
+            # classfn_loss+=loss[1].detach().item()
+            # rc_loss+=loss[2].detach().item()
+            # l_p1+=loss[3].detach().item()
+            # l_p2+=loss[4].detach().item()
+            # l_p3+=loss[5].detach().item()
+            optim.zero_grad()
+    #             loss=loss/len(batch)
+            loss[0].backward()
+            optim.step()
+            classfn_out=None
+            loss=None
+    #             torch.cuda.empty_cache()
+        # print(classfn_loss,rc_loss,l_p1,l_p2,l_p3)
+        total_loss=total_loss/train_dataset_len
+        val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(train_dl,model)
+        print_logs(logs_path,"TRAIN SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+        es.activate(mac_val_f1[0],mac_val_f1[1])
+        val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(val_dl,model)
+        print_logs(logs_path,"VAL SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+        es((mac_val_f1[1]+mac_val_f1[0])/2,epoch,model)
+        if es.early_stop:
+            break
+        if es.improved:
+            """
+            Below using "val_" prefix but the dl is that of test.
+            """
+            val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(test_dl,model)
+            print_logs(logs_path,"TEST SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+        elif (epoch+1)%5==0:
+            """
+            Below using "val_" prefix but the dl is that of test.
+            """
+            val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(test_dl,model)
+            print_logs(logs_path,"TEST SCORES (not the best ones)",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
 
 #### Training and eval functions
 
@@ -21,10 +99,13 @@ def train_simple_ProtoTEx(
         train_dataset_len,
         num_prototypes, 
         num_pos_prototypes,
-        modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_20_train_nomask_protos"
+        modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_50_train_nomask_protos_lam0.9_encTrue",
+    rec_loss=0,
+    train_deocder=0
         ):
     torch.cuda.empty_cache()
-    model=ProtoTEx(num_prototypes, num_pos_prototypes).cuda()
+    model=ProtoTEx(num_prototypes, num_pos_prototypes,
+                   special_classfn=True,p=1).cuda()
     model.set_prototypes(do_random=True)
     optim=AdamW(model.parameters(),lr=3e-5,weight_decay=0.01,eps=1e-8)
     save_path=MODELPATH+modelname
@@ -43,17 +124,17 @@ def train_simple_ProtoTEx(
     for epoch in range(n_iters):
         total_loss=0
         model.train()
-        model.set_encoder_status(status=False)
-        model.set_decoder_status(status=False)
+        model.set_encoder_status(status=True)
+        model.set_decoder_status(status=False if train_deocder==0 else True)
         model.set_protos_status(status=True)
         model.set_classfn_status(status=True)
         classfn_loss,rc_loss,l_p1,l_p2,l_p3=[0]*5
         train_loader = tqdm(train_dl, total=len(train_dl), unit="batches",desc="training")
         for batch in train_loader:
             input_ids,attn_mask,y=batch
-            classfn_out,loss=model(input_ids,attn_mask,y,use_decoder=0,use_classfn=1,
-                                use_rc=0,use_p1=1,use_p2=1,use_p3=0,rc_loss_lamb=1.0,p1_lamb=1.0,
-                                p2_lamb=1.0,p3_lamb=0)
+            classfn_out,loss=model(input_ids,attn_mask,y,use_decoder=rec_loss,use_classfn=1,
+                                use_rc=rec_loss,use_p1=1,use_p2=1,use_p3=0,rc_loss_lamb=1.0,p1_lamb=0.9,
+                                p2_lamb=0.9,p3_lamb=1.0)
             total_loss+=loss[0].detach().item()
             classfn_loss+=loss[1].detach().item()
             rc_loss+=loss[2].detach().item()
@@ -77,8 +158,8 @@ def train_simple_ProtoTEx(
         val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(val_dl,model)
         print_logs(logs_path,"VAL SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
         
-    #     es((mac_val_f1[1]+mac_val_f1[0])/2,epoch,model)
-        es(mac_val_f1[1],epoch,model)
+        es((mac_val_f1[0]+mac_val_f1[1])/2,epoch,model)
+#         es(mac_val_f1[1],epoch,model)
         if es.early_stop:
             break
         if es.improved:
@@ -134,6 +215,7 @@ def train_ProtoTEx_w_neg(train_dl,
     gamma=2
     delta=1
     kappa=1
+    distmask_lp=1
     p1_lamb=0.9
     p2_lamb=0.9
     p3_lamb=0.9
@@ -164,7 +246,7 @@ def train_ProtoTEx_w_neg(train_dl,
                 classfn_out, loss = model(input_ids, attn_mask, y, use_decoder=0, use_classfn=0,
                                         use_rc=0, use_p1=1, use_p2=0, use_p3=0,
                                         rc_loss_lamb=1.0, p1_lamb=p1_lamb, p2_lamb=p2_lamb,
-                                        p3_lamb=p3_lamb,distmask_lp1=1,distmask_lp2=1,
+                                        p3_lamb=p3_lamb,distmask_lp1=distmask_lp,distmask_lp2=distmask_lp,
                                         random_mask_for_distanceMat=None)
                 # total_loss += loss[0].detach().item()
                 optim.zero_grad()
@@ -193,7 +275,7 @@ def train_ProtoTEx_w_neg(train_dl,
                 classfn_out, loss = model(input_ids, attn_mask, y, use_decoder=0, use_classfn=1,
                                         use_rc=0, use_p1=0, use_p2=1,
                                         rc_loss_lamb=1., p1_lamb=p1_lamb,p2_lamb=p2_lamb,
-                                        distmask_lp1 = 1, distmask_lp2 = 1)
+                                        distmask_lp1 = distmask_lp, distmask_lp2 = distmask_lp)
                 optim.zero_grad()
                 loss[0].backward()
                 optim.step()
