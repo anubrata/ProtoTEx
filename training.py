@@ -6,7 +6,7 @@ from tqdm.notebook import tqdm
 
 ## Custom modules
 from utils import EarlyStopping, print_logs, evaluate
-from models import ProtoTEx
+from models import ProtoTEx, SimpleProtoTex
 
 ## Save paths
 MODELPATH = "Models/"
@@ -15,6 +15,74 @@ LOGSPATH = "Logs/"
 #### Training and eval functions
 
 def train_simple_ProtoTEx(
+    train_dl, 
+    val_dl, 
+    test_dl,
+    num_prototypes,
+    train_dataset_len,
+    modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_20_train_nomask_protos",
+):
+    torch.cuda.empty_cache()        
+    model=SimpleProtoTex(num_prototypes=num_prototypes).cuda()
+    torch.cuda.empty_cache()
+    
+    save_path=MODELPATH+modelname
+    logs_path=LOGSPATH+modelname    
+
+    optim=AdamW(model.parameters(),lr=3e-5,weight_decay=0.01,eps=1e-8)
+    f=open(logs_path,"w")
+    f.writelines([""])
+    f.close()
+    epoch=-1
+    val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(val_dl,model)
+    print_logs(logs_path,"VAL SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+    val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(train_dl,model)
+    print_logs(logs_path,"TRAIN SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+    es=EarlyStopping(-np.inf,patience=7,path=save_path,save_epochwise=False)
+    n_iters=500
+    for epoch in range(n_iters):
+        total_loss=0
+        model.train()
+        model.set_encoder_status(status=True)
+        model.set_decoder_status(status=False)
+        model.set_protos_status(status=True)
+        model.set_classfn_status(status=True)
+        classfn_loss,rc_loss,l_p1,l_p2,l_p3=[0]*5
+        train_loader = tqdm(train_dl, total=len(train_dl), unit="batches",desc="training")
+        for batch in train_loader:
+            input_ids,attn_mask,y=batch
+            classfn_out,loss=model(input_ids,attn_mask,y,use_decoder=0,use_classfn=1,
+                                   use_rc=0,use_p1=1,use_p2=1,rc_loss_lamb=1.0,p1_lamb=1.0,
+                                   p2_lamb=1.0)
+            optim.zero_grad()
+            loss[0].backward()
+            optim.step()
+            classfn_out=None
+            loss=None
+        total_loss=total_loss/train_dataset_len
+        val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(train_dl,model)
+        print_logs(logs_path,"TRAIN SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+        es.activate(mac_val_f1[0],mac_val_f1[1])
+        val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(val_dl,model)
+        print_logs(logs_path,"VAL SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+        es((mac_val_f1[1]+mac_val_f1[0])/2,epoch,model)
+        if es.early_stop:
+            break
+        if es.improved:
+            """
+            Below using "val_" prefix but the dl is that of test.
+            """
+            val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(test_dl,model)
+            print_logs(logs_path,"TEST SCORES",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+        elif (epoch+1)%5==0:
+            """
+            Below using "val_" prefix but the dl is that of test.
+            """
+            val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1=evaluate(test_dl,model)
+            print_logs(logs_path,"TEST SCORES (not the best ones)",epoch,val_loss,mac_val_prec,mac_val_rec,mac_val_f1,mic_val_prec,mic_val_rec,mic_val_f1)
+
+
+def train_simple_ProtoTEx_adv(
         train_dl, 
         val_dl, 
         test_dl,

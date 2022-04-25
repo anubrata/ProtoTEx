@@ -30,25 +30,6 @@ def create_labels(dataset):
         temp=[ set(i)-set("O") for d in dataset[1] for i in d]
         return [ next(iter(i)) if len(i)>0 else "O"  for i in temp]
 
-class SimpleBinaryClassDataset(torch.utils.data.Dataset):
-    def __init__(self, x,y,fix_seq_len=256):
-        self.x=x
-        self.y=[1. if i!="O" else 0. for i in y]
-        self.fix_seq_len=fix_seq_len
-    def __len__(self):
-        return len(self.x)
-    def __getitem__(self, idx):
-        return self.x[idx],self.y[idx]
-    def collate_fn(self,batch):
-        temp=tokenizer([i[0] for i in batch],return_tensors="pt",max_length=256,padding=True)        
-        input_ids,attn_mask=temp["input_ids"],temp["attention_mask"]
-        cur_seq_len=input_ids.size(1)
-        if cur_seq_len<self.fix_seq_len:
-            input_ids=torch.cat((input_ids,torch.ones(input_ids.size(0),self.fix_seq_len-cur_seq_len,dtype=input_ids.dtype)),dim=1)
-            attn_mask=torch.cat((attn_mask,torch.zeros(input_ids.size(0),self.fix_seq_len-cur_seq_len,dtype=attn_mask.dtype)),dim=1)
-        y=torch.tensor([i[1] for i in batch])
-        return input_ids,attn_mask,y
-
 class BinaryClassDataset(torch.utils.data.Dataset):
     def __init__(self, x,y,y_txt,tokenizer,it_is_train=1,pos_or_neg=None,fix_seq_len=256,balance=False,
                  specific_label=None,for_protos=False):
@@ -124,28 +105,6 @@ class BinaryClassDataset(torch.utils.data.Dataset):
         return (torch.LongTensor([i[0] for i in batch]),
                 torch.Tensor([i[1] for i in batch]),
                 torch.LongTensor([i[2] for i in batch]))
-
-class SpecialBinaryClassDataset(BinaryClassDataset):
-    def __init__(self, x,y,y_txt,it_is_train=1,pos_or_neg=None,fix_seq_len=256,balance=False,
-                 specific_label=None,for_protos=False):
-        super().__init__( x,y,y_txt,it_is_train=it_is_train,pos_or_neg=pos_or_neg,fix_seq_len=fix_seq_len,balance=balance,
-                 specific_label=specific_label,for_protos=for_protos)
-        self.pos_idxs=[i for i in range(len(self.y)) if self.y[i]==1]
-        self.neg_idxs=[i for i in range(len(self.y)) if self.y[i]==0]
-    def __len__(self):
-        return len(self.pos_idxs)
-    def __getitem__(self, idx):
-        return idx
-    def collate_fn(self,batch):
-        pos_batch_idxs=torch.tensor([self.pos_idxs[i] for i in batch])
-        neg_batch_idxs=torch.tensor([self.neg_idxs[i] for i in 
-                        torch.randint_like(low=0,high=len(self.neg_idxs),input=pos_batch_idxs)])
-        batch=torch.cat((pos_batch_idxs,neg_batch_idxs))
-        
-        return (torch.LongTensor([self.x[i] for i in batch]),
-                torch.Tensor([self.attn_mask[i] for i in batch]),
-                torch.LongTensor([self.y[i] for i in batch]))
-
 
 
 ## Preprocess function from the Propaganda Detection paper 

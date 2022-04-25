@@ -17,7 +17,7 @@ from preprocess import make_bert_dataset,make_bert_testset
 from preprocess import create_labels, labels_set 
 from preprocess import BinaryClassDataset
 
-from training import train_simple_ProtoTEx, train_ProtoTEx_w_neg
+from training import train_simple_ProtoTEx, train_simple_ProtoTEx_adv, train_ProtoTEx_w_neg
 
 ## Set cuda 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -94,10 +94,13 @@ def main():
             num_prototypes=args.num_prototypes, 
             num_pos_prototypes=args.num_pos_prototypes
         )
-
-    elif args.model == "SimpleProtoTEx":
-        print("Simple ProtoTEx")
-        train_simple_ProtoTEx(
+    # SimpleProtoTEx can be trained in two different ways. In one case it is by reusing the ProtoTEx class definition 
+    # and the other way is to use a dedicated SimpleProtoTEx class definition. Both of the implementations are available below. 
+    # The dedicated SimpleProtoTEx class definition shall reproduce the results mentioned in the paper. 
+    
+    elif args.model == "SimpleProtoTExAdv":
+        print("Use ProtoTEx Class definition for Simple ProtoTEx")
+        train_simple_ProtoTEx_adv(
             train_dl = train_dl,
             val_dl = val_dl,
             test_dl = test_dl,
@@ -105,7 +108,18 @@ def main():
             num_prototypes=args.num_prototypes, 
             num_pos_prototypes=args.num_pos_prototypes
         ) 
- 
+    
+    elif args.model == "SimpleProtoTEx":
+        print("Dedicated simple prototex")
+        train_simple_ProtoTEx(
+             train_dl, 
+             val_dl, 
+             test_dl,
+             train_dataset_len = len(train_dataset),
+             modelname="0406_simpleprotobart_onlyclass_lp1_lp2_fntrained_20_train_nomask_protos",
+             num_prototypes=args.num_prototypes 
+        )
+
 
 if __name__ == '__main__':
     main()
