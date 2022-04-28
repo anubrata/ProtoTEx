@@ -24,10 +24,10 @@ def train_simple_ProtoTEx_1(
         ):
     
     model=SimpleProtoBartModel(num_prototypes=num_prototypes).cuda()
+#     model.set_prototypes(do_random=True)
 
     # optim=torch.optim.Adam(model.parameters(),lr=5e-5,weight_decay=0.01)
     optim=AdamW(model.parameters(),lr=3e-5,weight_decay=0.01,eps=1e-8)
-    modelname="simpleprotobart_20"
     save_path="Models/"+modelname
     logs_path="Logs/"+modelname
     f=open(logs_path,"w")

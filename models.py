@@ -10,19 +10,34 @@ class SimpleProtoBartModel(torch.nn.Module):
         super().__init__()
         self.bart_model=BartForConditionalGeneration.from_pretrained('facebook/bart-large')   
         self.bart_out_dim=self.bart_model.config.d_model
+        self.one_by_sqrt_bartoutdim=1/torch.sqrt(torch.tensor(self.bart_out_dim).float())
         self.max_position_embeddings=256
         self.num_protos=num_prototypes
         self.prototypes=torch.nn.Parameter(torch.rand(self.num_protos,self.max_position_embeddings,self.bart_out_dim))
         self.classfn_model=torch.nn.Linear(self.num_protos,2)
         self.loss_fn=torch.nn.CrossEntropyLoss(reduction="mean")
         
-        self.set_encoder_status(True)
+        self.set_encoder_status(False)
         self.set_decoder_status(False)
         self.set_protos_status(False)
         self.set_classfn_status(False)
         
         self.BNLayer=torch.nn.BatchNorm1d(self.num_protos)
-        
+
+    def set_prototypes(self,do_random=False):
+        if do_random:
+            print("initializing prototypes with xavier init")
+            torch.nn.init.xavier_normal_(self.prototypes)
+        else:
+            print("initializing prototypes with encoded outputs")
+            self.eval()
+            with torch.no_grad():
+                self.prototypes=torch.nn.Parameter(
+                    self.bart_model.base_model.encoder(input_ids_pos_rdm.cuda(),
+                                                       attn_mask_pos_rdm.cuda(),
+                                                       output_attentions=False,
+                                                       output_hidden_states=False).last_hidden_state)
+
     def set_encoder_status(self,status=True):
         self.num_enc_layers=len(self.bart_model.base_model.encoder.layers)
         for (i,x) in enumerate(self.bart_model.base_model.encoder.layers):
@@ -58,7 +73,7 @@ class SimpleProtoBartModel(torch.nn.Module):
                                                                  output_hidden_states=False).last_hidden_state
         input_for_classfn,l_p1,l_p2,classfn_out,classfn_loss=None,0,0,None,0
         if use_classfn or use_p1 or use_p2:
-            input_for_classfn=torch.cdist(last_hidden_state.view(batch_size,-1),
+            input_for_classfn=self.one_by_sqrt_bartoutdim* torch.cdist(last_hidden_state.view(batch_size,-1),
                                           self.prototypes.view(self.num_protos,-1))
         if use_p1:
             l_p1=torch.mean(torch.min(input_for_classfn,dim=0)[0])

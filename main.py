@@ -108,6 +108,7 @@ def main():
             train_dataset_len = len(train_dataset),
             num_prototypes=args.num_prototypes, 
             num_pos_prototypes=args.num_pos_prototypes,
+            modelname=args.modelname
         ) 
  
 
