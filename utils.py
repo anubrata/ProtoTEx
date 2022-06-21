@@ -133,7 +133,7 @@ def evaluate(dl,model_new=None,path=None,modelclass=None):
 
 #### Functions for analyzing prototypes 
 
-def get_best_k_protos_for_batch(test_sents, test_ls, test_y_txt, specific_label,model_new=None,model_path=None,
+def get_best_k_protos_for_batch(test_sents, test_ls, test_y_txt, specific_label, tokenizer, model_new=None,model_path=None,
                                 model_class=None,topk=None,do_all=False):
     """
         get the best k protos for that a fraction of test data where each element has a specific true label.
@@ -145,7 +145,7 @@ def get_best_k_protos_for_batch(test_sents, test_ls, test_y_txt, specific_label,
         print("creating new model")
         model_new=model_class().cuda()
         model_new.load_state_dict(torch.load(model_path))
-    dataset=BinaryClassDataset(test_sents,test_ls,test_y_txt,it_is_train=0,specific_label=specific_label)
+    dataset=BinaryClassDataset(test_sents,test_ls,test_y_txt,tokenizer,it_is_train=0,specific_label=specific_label)
     dl=torch.utils.data.DataLoader(dataset,batch_size=128,shuffle=False,
                                      collate_fn=dataset.collate_fn)
     loader = tqdm(dl, total=len(dl), unit="batches")
