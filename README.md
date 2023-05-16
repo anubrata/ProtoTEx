@@ -4,7 +4,7 @@ This repository contains example implementations of Prototype tensors for provid
 
 Find a copy of the paper here: https://utexas.app.box.com/v/das-acl-2022 
 
-**NOTE**: Part of the code is being refactored and tested. Please contact me if you have any questions. 
+**NOTE**: This code is written to reproduce the experimental results reportedin the paper. If you run into any issues, please contact me. 
 
 ## Quick Start
 
